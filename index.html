@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const serverUrl = urlParams.get('server') || 'https://api.example.com';
     const userId = urlParams.get('id') || 'default_user';
+    const isProUser = urlParams.get('pro') === 'true';
     
     const fileInput = document.getElementById('fileInput');
     const previewImage = document.getElementById('previewImage');
@@ -334,13 +335,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 totalAttempts = data.total_attempts;
             }
         } catch (error) {
-            console.warn('Не удалось загрузить попытки, работаем оффлайн:', error);
             attemptsLeft = 0; // fallback
         }
         updateAttemptsCounter();
     }
 
     async function decrementAttempts() {
+        // Если пользователь pro - не уменьшаем попытки
+        if (isProUser) {
+            attemptsLeft = 0; // У pro пользователей всегда неограниченные попытки
+            updateAttemptsCounter();
+            return;
+        }
+
         attemptsLeft++;
         updateAttemptsCounter();
 
@@ -356,13 +363,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateAttemptsCounter();
             }
         } catch (error) {
-            console.warn('Ошибка обновления попыток на сервере, считаем локально:', error);
+            console.error('Error decrementing attempts:', error);
         }
     }
 
+    // Модифицируем функцию analyzeBtn click handler
+    analyzeBtn.addEventListener('click', async function() {
+        // Для pro пользователей не проверяем лимит
+        if (!isProUser && attemptsLeft >= totalAttempts) {
+            document.getElementById('overlay').style.display = 'flex';
+            return;
+        }
+
+        switchScreen(screens.screen2, screens.screenLoading);
+        await decrementAttempts();
+
+        const delay = 2000 + Math.random() * 3000;
+        setTimeout(analyzeBet, delay);
+    });
+
+    // Обновляем отображение счетчика для pro пользователей
     function updateAttemptsCounter() {
         document.querySelectorAll('.attempts-counter').forEach(counter => {
-            counter.innerHTML = `Осталось попыток на сегодня: <b>${totalAttempts-attemptsLeft} из ${totalAttempts}</b>`
+            if (isProUser) {
+                counter.innerHTML = `PRO версия: <b>неограниченные попытки</b>`;
+            } else {
+                counter.innerHTML = `Осталось попыток на сегодня: <b>${totalAttempts-attemptsLeft} из ${totalAttempts}</b>`;
+            }
         });
     }
 
